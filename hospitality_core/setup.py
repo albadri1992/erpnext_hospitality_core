@@ -81,6 +81,9 @@ def create_default_data():
             # Last resort: grab any item group
             target_item_group = frappe.db.get_value("Item Group", {}, "name")
             
+    # Resolve a valid stock UOM (mandatory on Item even for non-stock service items)
+    default_uom = "Nos" if frappe.db.exists("UOM", "Nos") else frappe.db.get_value("UOM", {}, "name")
+
     for i in items:
         if not frappe.db.exists("Item", i["code"]):
             item = frappe.new_doc("Item")
@@ -88,4 +91,5 @@ def create_default_data():
             item.item_name = i["name"]
             item.item_group = target_item_group
             item.is_stock_item = 0
+            item.stock_uom = default_uom
             item.insert(ignore_permissions=True)
