@@ -1,0 +1,16 @@
+{
+  "name": "Hospitality Core (ERPNext v15) Dev",
+  "install": "bash .cursor/install.sh",
+  "start": "bash .cursor/start.sh",
+  "terminals": [
+    {
+      "name": "bench",
+      "command": "export PATH=\"$HOME/.local/bin:$PATH\" && cd ~/frappe-bench && bench start",
+      "description": "Frappe/ERPNext dev server: web on :8000, socketio on :9000, plus workers and scheduler. Site hotel.localhost is served at http://localhost:8000 (login Administrator / admin)."
+    }
+  ],
+  "ports": [
+    { "name": "web", "port": 8000 },
+    { "name": "socketio", "port": 9000 }
+  ]
+}
