@@ -1,6 +1,26 @@
 import frappe
 from frappe import _
 
+
+def get_hotel_company():
+    """
+    Resolve the ERPNext Company dynamically.
+
+    Priority:
+    1. Current user's default Company
+    2. Global Defaults' default_company
+
+    This mirrors the resolution pattern already used elsewhere in the app
+    (e.g. folio.py, invoicing.py) and avoids hard-coding a company name.
+    """
+    company = frappe.defaults.get_user_default("Company")
+    if not company:
+        company = frappe.db.get_single_value("Global Defaults", "default_company")
+    if not company:
+        frappe.throw(_("No default Company is configured. Please set a default Company in Global Defaults."))
+    return company
+
+
 @frappe.whitelist()
 def create_folio_payment(folio_name, amount, mode_of_payment, hotel_reception):
     """
@@ -12,8 +32,8 @@ def create_folio_payment(folio_name, amount, mode_of_payment, hotel_reception):
     if amount <= 0:
         frappe.throw(_("Amount must be greater than zero."))
 
-    # Company is always Edo Heritage Hotel
-    COMPANY = "Edo Heritage Hotel"
+    # Resolve the ERPNext Company dynamically (never hard-coded)
+    COMPANY = get_hotel_company()
 
     # 1. Load the Folio
     folio = frappe.get_doc("Guest Folio", folio_name)
@@ -44,7 +64,7 @@ def create_folio_payment(folio_name, amount, mode_of_payment, hotel_reception):
     if not customer:
         frappe.throw(_("No customer could be resolved for Folio {0}.").format(folio_name))
 
-    # 3. Resolve the paid_to Account from Mode of Payment (always using Edo Heritage Hotel)
+    # 3. Resolve the paid_to Account from Mode of Payment (for the resolved company)
     mop_account = frappe.db.get_value(
         "Mode of Payment Account",
         {"parent": mode_of_payment, "company": COMPANY},
@@ -59,16 +79,16 @@ def create_folio_payment(folio_name, amount, mode_of_payment, hotel_reception):
         )
     if not mop_account:
         frappe.throw(_(
-            "No account configured for Mode of Payment '{0}' under Edo Heritage Hotel. "
+            "No account configured for Mode of Payment '{0}' under Company '{1}'. "
             "Please add a default account for it."
-        ).format(mode_of_payment))
+        ).format(mode_of_payment, COMPANY))
 
-    # 4. Resolve the Accounts Receivable account from Edo Heritage Hotel
+    # 4. Resolve the Accounts Receivable account from the resolved company
     receivable_account = frappe.db.get_value(
         "Company", COMPANY, "default_receivable_account"
     )
     if not receivable_account:
-        frappe.throw(_("No Default Receivable Account found for 'Edo Heritage Hotel'. Please configure it in Company settings."))
+        frappe.throw(_("No Default Receivable Account found for Company '{0}'. Please configure it in Company settings.").format(COMPANY))
 
     # 5. Resolve poster's full name from session
     poster_name = frappe.db.get_value("User", frappe.session.user, "full_name") or frappe.session.user
@@ -114,7 +134,8 @@ def issue_folio_refund(folio_name, amount, hotel_reception):
     if amount <= 0:
         frappe.throw(_("Refund amount must be greater than zero."))
 
-    COMPANY = "Edo Heritage Hotel"
+    # Resolve the ERPNext Company dynamically (never hard-coded)
+    COMPANY = get_hotel_company()
 
     # 1. Load the Folio
     folio = frappe.get_doc("Guest Folio", folio_name)
@@ -181,16 +202,16 @@ def issue_folio_refund(folio_name, amount, hotel_reception):
         )
     if not mop_account:
         frappe.throw(_(
-            "No account configured for Mode of Payment '{0}' under Edo Heritage Hotel. "
+            "No account configured for Mode of Payment '{0}' under Company '{1}'. "
             "Please add a default account for it."
-        ).format(mode_of_payment))
+        ).format(mode_of_payment, COMPANY))
 
-    # 4. Resolve the Accounts Receivable account from Edo Heritage Hotel
+    # 4. Resolve the Accounts Receivable account from the resolved company
     receivable_account = frappe.db.get_value(
         "Company", COMPANY, "default_receivable_account"
     )
     if not receivable_account:
-        frappe.throw(_("No Default Receivable Account found for 'Edo Heritage Hotel'. Please configure it in Company settings."))
+        frappe.throw(_("No Default Receivable Account found for Company '{0}'. Please configure it in Company settings.").format(COMPANY))
 
     # 5. Resolve poster's full name from session
     poster_name = frappe.db.get_value("User", frappe.session.user, "full_name") or frappe.session.user
@@ -364,8 +385,8 @@ def create_company_folio_payment(folio_name, amount, mode_of_payment, hotel_rece
     customer = folio.company
     company_name = frappe.db.get_value("Customer", customer, "customer_name") or customer
 
-    # Company (hotel) — same constant used throughout the system
-    COMPANY = "Edo Heritage Hotel"
+    # Company (hotel) — resolved dynamically, consistent across the system
+    COMPANY = get_hotel_company()
 
     # Resolve paid_to account from Mode of Payment
     mop_account = frappe.db.get_value(
