@@ -224,7 +224,14 @@ def redirect_pos_income_to_suspense(pos_invoice, method=None):
         return
 
     settings = frappe.get_single("Hospitality Accounting Settings")
-    
+
+    # Safety guard: this posts direct GL on an individual POS Invoice, which ERPNext v15
+    # does not do (POS GL is deferred to shift consolidation). If the required accounts are
+    # not configured, do nothing — this keeps POS on standard ERPNext accounting, avoids
+    # posting to empty accounts, and keeps POS Invoices cancellable.
+    if not (settings.income_account and settings.income_suspense_account):
+        return
+
     from erpnext.accounts.general_ledger import make_gl_entries
     
     gl_entries = []
@@ -273,6 +280,16 @@ def reclassify_pos_taxes(pos_invoice, method=None):
         return
 
     settings = frappe.get_single("Hospitality Accounting Settings")
+
+    # Safety guard: this fabricates a fixed 22.5% tax and posts it as direct GL on an
+    # individual POS Invoice. ERPNext v15 defers POS GL to shift consolidation, so these
+    # direct entries make the POS Invoice impossible to cancel and are posted to empty
+    # accounts when unconfigured. Only run when ALL tax accounts are explicitly configured;
+    # otherwise leave POS on standard ERPNext accounting (no fabricated tax, cancellable).
+    if not (settings.income_account and settings.consumption_tax_account
+            and settings.vat_account and settings.service_charge_account):
+        return
+
     from erpnext.accounts.general_ledger import make_gl_entries
 
     total_amount = flt(pos_invoice.grand_total, 2)
